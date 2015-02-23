@@ -1,0 +1,166 @@
+Recoverer pintool that exports a json JSON file with a trace of all the functions
+using the this calling conventions
+
+With this information the auditor can quickly pinpoint all the methods inside
+a class just by inspecting all the functions that receive the same chunk as
+the "this" parameter. This is a heurisitic aproach, but in reality, with manual
+inspection the auditor can easily rule out false positives.
+
+Example usage: Here we run the pintool from the command line and we specify that only the 'test1'
+image should be instrumented. This improves performance and reduce the amount of information collected.
+
+anon@macbook$ pin -t obj-intel64/Recoverer.dylib -w test1 -- ../../tools/test_binaries/test1
+Resolver tool by Agustin Gianni (Preto Inc.)
+White-listing image: test1
+Instrumenting malloc                                                       at 0x00007fff6a023bfa on image /usr/lib/dyld
+Instrumenting operator new(unsigned long)                                  at 0x00007fff6a02cf60 on image /usr/lib/dyld
+Instrumenting operator new[](unsigned long)                                at 0x00007fff6a02cfce on image /usr/lib/dyld
+Instrumenting free                                                         at 0x00007fff6a023cf2 on image /usr/lib/dyld
+Instrumenting operator delete[](void*)                                     at 0x00007fff6a02cff4 on image /usr/lib/dyld
+Instrumenting operator delete(void*)                                       at 0x00007fff6a02cfd9 on image /usr/lib/dyld
+Instrumenting operator new(unsigned long)                                  at 0x00007fff808fc420 on image /usr/lib/libc++.1.dylib
+Instrumenting operator new[](unsigned long)                                at 0x00007fff808fc4ce on image /usr/lib/libc++.1.dylib
+Instrumenting operator new(unsigned long, std::nothrow_t const&)           at 0x00007fff808fc485 on image /usr/lib/libc++.1.dylib
+Instrumenting operator new[](unsigned long, std::nothrow_t const&)         at 0x00007fff808fc4d8 on image /usr/lib/libc++.1.dylib
+Instrumenting operator delete[](void*)                                     at 0x00007fff808fc524 on image /usr/lib/libc++.1.dylib
+Instrumenting operator delete(void*)                                       at 0x00007fff808fc509 on image /usr/lib/libc++.1.dylib
+Instrumenting operator delete(void*, std::nothrow_t const&)                at 0x00007fff808fc51a on image /usr/lib/libc++.1.dylib
+Instrumenting operator delete[](void*, std::nothrow_t const&)              at 0x00007fff808fc52e on image /usr/lib/libc++.1.dylib
+Instrumenting operator new(unsigned long)                                  at 0x00007fff843cb220 on image /usr/lib/libc++abi.dylib
+Instrumenting operator new[](unsigned long)                                at 0x00007fff843cb2cb on image /usr/lib/libc++abi.dylib
+Instrumenting operator new(unsigned long, std::nothrow_t const&)           at 0x00007fff843cb281 on image /usr/lib/libc++abi.dylib
+Instrumenting operator new[](unsigned long, std::nothrow_t const&)         at 0x00007fff843cb2d0 on image /usr/lib/libc++abi.dylib
+Instrumenting operator delete[](void*)                                     at 0x00007fff843cb311 on image /usr/lib/libc++abi.dylib
+Instrumenting operator delete(void*)                                       at 0x00007fff843cb301 on image /usr/lib/libc++abi.dylib
+Instrumenting operator delete(void*, std::nothrow_t const&)                at 0x00007fff843cb30c on image /usr/lib/libc++abi.dylib
+Instrumenting operator delete[](void*, std::nothrow_t const&)              at 0x00007fff843cb316 on image /usr/lib/libc++abi.dylib
+Instrumenting malloc                                                       at 0x00007fff8d986b10 on image /usr/lib/system/libsystem_kernel.dylib
+Instrumenting free                                                         at 0x00007fff8d986b1d on image /usr/lib/system/libsystem_kernel.dylib
+Instrumenting malloc                                                       at 0x00007fff8d9a536b on image /usr/lib/system/libsystem_malloc.dylib
+Instrumenting free                                                         at 0x00007fff8d9a878b on image /usr/lib/system/libsystem_malloc.dylib
+Instrumenting malloc                                                       at 0x00007fff891f154c on image /usr/lib/system/libsystem_pthread.dylib
+Instrumenting free                                                         at 0x00007fff891f155d on image /usr/lib/system/libsystem_pthread.dylib
+Logging information to: log.json
+
+anon@macbook$ cat log.json
+
+{
+	"interesting_functions" :
+	[
+
+		{
+			"address" : 4435300020,
+			"chunks" :
+			[
+
+				{
+					"address" : 140195270760800,
+					"size" : 4,
+					"timestamp" : 93
+				},
+
+				{
+					"address" : 140195270760816,
+					"size" : 4,
+					"timestamp" : 94
+				},
+
+				{
+					"address" : 140195270760832,
+					"size" : 4,
+					"timestamp" : 95
+				}
+			]
+		},
+
+		{
+			"address" : 4435300026,
+			"chunks" :
+			[
+
+				{
+					"address" : 140195270760800,
+					"size" : 4,
+					"timestamp" : 93
+				},
+
+				{
+					"address" : 140195270760816,
+					"size" : 4,
+					"timestamp" : 94
+				},
+
+				{
+					"address" : 140195270760832,
+					"size" : 4,
+					"timestamp" : 95
+				}
+			]
+		},
+
+		{
+			"address" : 4435300032,
+			"chunks" :
+			[
+
+				{
+					"address" : 140195270760800,
+					"size" : 4,
+					"timestamp" : 93
+				},
+
+				{
+					"address" : 140195270760816,
+					"size" : 4,
+					"timestamp" : 94
+				},
+
+				{
+					"address" : 140195270760832,
+					"size" : 4,
+					"timestamp" : 95
+				}
+			]
+		},
+
+		{
+			"address" : 4435300038,
+			"chunks" :
+			[
+
+				{
+					"address" : 140195270760800,
+					"size" : 4,
+					"timestamp" : 93
+				},
+
+				{
+					"address" : 140195270760816,
+					"size" : 4,
+					"timestamp" : 94
+				},
+
+				{
+					"address" : 140195270760832,
+					"size" : 4,
+					"timestamp" : 95
+				}
+			]
+		}
+	],
+	"loaded_images" :
+	[
+
+		{
+			"hi_addr" : 4435304447,
+			"lo_addr" : 4435296256,
+			"name" : "/Users/anon/work/presentations/training_ch/instrumentation/tools/test_binaries/test1"
+		},
+
+		{
+			"hi_addr" : 140734972297215,
+			"lo_addr" : 140734971838464,
+			"name" : "/usr/lib/dyld"
+		}
+	]
+}

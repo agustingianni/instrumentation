@@ -1,0 +1,5 @@
+TOOL_CXXFLAGS += -std=c++11 -I . -Wno-error=format
+TEST_TOOL_ROOTS := Recoverer
+
+$(OBJDIR)Recoverer$(PINTOOL_SUFFIX): $(OBJDIR)Recoverer$(OBJ_SUFFIX) $(OBJDIR)ImageManager$(OBJ_SUFFIX) $(OBJDIR)jsoncpp$(OBJ_SUFFIX)
+	$(LINKER) $(TOOL_LDFLAGS) $(LINK_EXE)$@ $^ $(TOOL_LPATHS) $(TOOL_LIBS)

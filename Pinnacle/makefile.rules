@@ -1,0 +1,17 @@
+TOOL_CXXFLAGS += -std=c++11
+TEST_TOOL_ROOTS := main
+
+# Build the main tool.
+$(OBJDIR)main$(PINTOOL_SUFFIX): 					\
+	$(OBJDIR)main$(OBJ_SUFFIX) 						\
+	$(OBJDIR)DescriptorManager$(OBJ_SUFFIX) 		\
+	$(OBJDIR)TaintManager$(OBJ_SUFFIX)				\
+	$(OBJDIR)TaintInformation$(OBJ_SUFFIX)			\
+	$(OBJDIR)TaintOriginManager$(OBJ_SUFFIX) 		\
+	$(OBJDIR)TaintOriginHandlersUnix$(OBJ_SUFFIX) 	\
+	$(OBJDIR)TraceLogger$(OBJ_SUFFIX)				\
+	$(OBJDIR)Registers$(OBJ_SUFFIX) 				\
+	$(OBJDIR)Processor$(OBJ_SUFFIX)			 		\
+	$(OBJDIR)Emulator$(OBJ_SUFFIX) 					\
+	$(OBJDIR)Utilities$(OBJ_SUFFIX)
+	$(LINKER) $(TOOL_LDFLAGS) $(LINK_EXE)$@ $^ $(TOOL_LPATHS) $(TOOL_LIBS) 

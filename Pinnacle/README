@@ -1,0 +1,3 @@
+TODO:
+
+    - Taint origin handlers do no untaint if the file descriptor is not tainted.

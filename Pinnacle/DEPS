@@ -1,0 +1,7 @@
+On Ubuntu (or similar):  
+    
+    $ sudo apt-get install libboost-all-dev
+
+On OS X:
+    
+    $ brew install boost

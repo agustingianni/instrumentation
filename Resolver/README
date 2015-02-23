@@ -1,0 +1,70 @@
+Resolver pintool that exports a json JSON file with information regarding
+interesting bits about the application like VTABLE address, indirect branches
+destinations and other stuff.
+
+This tool aims to facilitate the task of the reverse-engineer while reversint big
+softwares. While tracing we collect information that can be then imported into IDA
+making the IDB more complete.
+
+The first information collected is information about the so called "direct_branches". This
+information is collected because sometimes IDA does not detect certain functions in the code.
+We log the entry point of the call function and then import it into IDA creating a XREF from
+the call point to the call entry point.
+
+The second type of information that we collect is the call point and call destination of
+indirect branches. With this information we can resolve the address of instructions like
+"call eax", "jmp eax", etc.
+
+The third type of information collected is the "interesting_instructions". Here we simply collect
+instructions that are likely to pose security threats. As of now, we collect sign extension instructions
+that may lead to sign extension issues, and rep prefixed instructions that are also sometimes source of
+interesting bugs. The idea behind this is that the auditor can import this information and
+manualy look at the information provided to look for bugs.
+
+The last type of information collected is the address of the VTABLES used by the software. We collect 
+this information using a pretty stable heuristic pattern followed by most compilers.
+
+Example usage: Here we run the pintool from the command line and we specify that only the 'test1'
+image should be instrumented. This improves performance and reduce the amount of information collected.
+
+anon@macbook$ pin -t obj-intel64/Resolver.dylib -w test1 -- ../../tools/test_binaries/test1
+Resolver tool by Agustin Gianni (Preto Inc.)
+White-listing image: test1
+Logging information to: log.json
+
+anon@macbook$ cat log.json
+
+{
+	"direct_branches" :
+	[
+
+		{
+			"function" : 4414856896,
+			"references" : [ 4414856832 ]
+		}
+	],
+	"indirect_branches" :
+	[
+		{
+			"from" : 4414856896,
+			"to" : [ 4414856864 ]
+		}
+	],
+	"interesting_instructions" : [],
+	"loaded_images" :
+	[
+
+		{
+			"hi_addr" : 4414861311,
+			"lo_addr" : 4414853120,
+			"name" : "/Users/anon/work/presentations/training_ch/instrumentation/tools/test_binaries/test1"
+		},
+
+		{
+			"hi_addr" : 140735451115519,
+			"lo_addr" : 140735451107328,
+			"name" : "/usr/lib/libDiagnosticMessagesClient.dylib"
+		}
+	],
+	"vtables" : []
+}
