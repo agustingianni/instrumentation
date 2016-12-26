@@ -14,6 +14,7 @@
 #include <sstream>
 #include <cassert>
 #include <iostream>
+#include <memory>
 
 // Disable debugging information.
 #define NDEBUG 1
@@ -33,7 +34,7 @@ using namespace std;
 using namespace Utilities;
 
 void TaintManager::taint(THREADID tid, ADDRINT ip, ADDRINT address, size_t size,
-	boost::shared_ptr<TaintInformation> ti) {
+	std::shared_ptr<TaintInformation> ti) {
 	DEBUG("address=%p size=%.8zx ip=%p", (void * ) address, size, (void * ) ip);
 
 	ADDRINT last = address + size;
@@ -60,7 +61,7 @@ void TaintManager::taint(THREADID tid, ADDRINT ip, ADDRINT address, size_t size,
 	pinnacle->onTaintEvent(ip);
 }
 
-void TaintManager::taint(THREADID tid, ADDRINT ip, REG reg, boost::shared_ptr<TaintInformation> ti) {
+void TaintManager::taint(THREADID tid, ADDRINT ip, REG reg, std::shared_ptr<TaintInformation> ti) {
 	DEBUG("reg=%s ip=%p", REG_StringShort(reg).c_str(), (void * ) ip);
 
 	lock.get(2);
@@ -204,8 +205,8 @@ bool TaintManager::tainted(THREADID tid, REG reg) {
 	return ret;
 }
 
-boost::shared_ptr<TaintInformation> TaintManager::getTaintInformation(ADDRINT address) {
-	boost::shared_ptr<TaintInformation> ret;
+std::shared_ptr<TaintInformation> TaintManager::getTaintInformation(ADDRINT address) {
+	std::shared_ptr<TaintInformation> ret;
 
 	lock.get(7);
 
@@ -220,10 +221,10 @@ boost::shared_ptr<TaintInformation> TaintManager::getTaintInformation(ADDRINT ad
 	return ret;
 }
 
-boost::shared_ptr<TaintInformation> TaintManager::getTaintInformation(ADDRINT address, size_t size) {
+std::shared_ptr<TaintInformation> TaintManager::getTaintInformation(ADDRINT address, size_t size) {
 	TaintBitField::iterator it;
 	ADDRINT prev_id = -1;
-	boost::shared_ptr<TaintInformation> ret;
+	std::shared_ptr<TaintInformation> ret;
 	size_t i = 0;
 
 	lock.get(8);
@@ -262,8 +263,8 @@ boost::shared_ptr<TaintInformation> TaintManager::getTaintInformation(ADDRINT ad
 	return ret;
 }
 
-boost::shared_ptr<TaintInformation> TaintManager::getTaintInformation(THREADID tid, REG reg) {
-	boost::shared_ptr<TaintInformation> ret;
+std::shared_ptr<TaintInformation> TaintManager::getTaintInformation(THREADID tid, REG reg) {
+	std::shared_ptr<TaintInformation> ret;
 
 	lock.get(9);
 	auto regmap = getRegisterMap(tid);

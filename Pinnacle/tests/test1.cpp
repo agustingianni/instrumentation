@@ -20,6 +20,19 @@ void test() {
         variable += 0xdeadbeef;
     }
 
+    uint64_t tmp1 = 0;
+    uint64_t tmp2 = variable << 2;
+    uint64_t tmp3 = variable >> 2;
+    uint64_t tmp4 = variable + 2;
+    uint64_t tmp5 = variable - 2;
+    uint64_t tmp6 = variable * 2;
+    uint64_t tmp7 = variable / 2;
+    uint64_t tmp8 = variable | 2;
+    uint64_t tmp9 = variable & 2;
+    uint64_t tmp10 = variable ^ 2;
+
+
+
     return;
 }
 

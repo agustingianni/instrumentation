@@ -6,7 +6,8 @@
  */
 
 #include <sstream>
-#
+#include <memory>
+
 #include "pin.H"
 #include "TaintInformation.h"
 #include "DescriptorManager.h"
@@ -17,7 +18,7 @@ TaintInformation::TaintInformation(ADDRINT origin) :
 	origin(origin) {
 }
 
-TaintInformation::TaintInformation(ADDRINT origin, boost::shared_ptr<TaintInformation> next) :
+TaintInformation::TaintInformation(ADDRINT origin, std::shared_ptr<TaintInformation> next) :
 	origin(origin), next(next) {
 }
 

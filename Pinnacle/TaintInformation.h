@@ -9,17 +9,17 @@
 #define TAINTINFORMATION_H_
 
 #include <string>
-#include <boost/shared_ptr.hpp>
+#include <memory>
 
 #include "pin.H"
 #include "DescriptorManager.h"
 
 struct TaintInformation {
 	ADDRINT origin;
-	boost::shared_ptr<TaintInformation> next;
+	std::shared_ptr<TaintInformation> next;
 
 	TaintInformation(ADDRINT origin);
-	TaintInformation(ADDRINT origin, boost::shared_ptr<TaintInformation> next);
+	TaintInformation(ADDRINT origin, std::shared_ptr<TaintInformation> next);
 };
 
 struct ReadTaintInformation: public TaintInformation {

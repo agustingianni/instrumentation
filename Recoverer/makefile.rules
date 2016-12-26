@@ -1,5 +1,10 @@
-TOOL_CXXFLAGS += -std=c++11 -I . -Wno-error=format
+# Import common object files.
+COMMON_PATH     := ../common
+COMMON_INCLUDES := -I $(COMMON_PATH)/
+COMMON_OBJECTS  := $(COMMON_PATH)/$(OBJDIR)jsoncpp$(OBJ_SUFFIX) $(COMMON_PATH)/$(OBJDIR)ImageManager$(OBJ_SUFFIX)
+
+TOOL_CXXFLAGS += -std=c++11 -Wno-format $(COMMON_INCLUDES)
 TEST_TOOL_ROOTS := Recoverer
 
-$(OBJDIR)Recoverer$(PINTOOL_SUFFIX): $(OBJDIR)Recoverer$(OBJ_SUFFIX) $(OBJDIR)ImageManager$(OBJ_SUFFIX) $(OBJDIR)jsoncpp$(OBJ_SUFFIX)
+$(OBJDIR)Recoverer$(PINTOOL_SUFFIX): $(OBJDIR)Recoverer$(OBJ_SUFFIX) $(COMMON_OBJECTS)
 	$(LINKER) $(TOOL_LDFLAGS) $(LINK_EXE)$@ $^ $(TOOL_LPATHS) $(TOOL_LIBS)

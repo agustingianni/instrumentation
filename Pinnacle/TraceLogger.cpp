@@ -33,7 +33,7 @@ void TraceLogger::logImageUnload(const IMG &img) {
 // Log the log of an image. We log the start and end addresses so we can rebase IDA.
 void TraceLogger::logImageLoad(const string &img_name, ADDRINT img_base, ADDRINT img_end) {
 	lock.get(1);
-	output << TL_IMG_LOAD << SEP << img_name << SEP << img_base << SEP << img_end << '\n';
+	output << TL_IMG_LOAD << SEP << img_name << SEP << (void *) img_base << SEP << (void *) img_end << '\n';
 	lock.release();
 }
 
@@ -47,6 +47,6 @@ void TraceLogger::logImageUnload(const string &img_name) {
 // Log the address of the tainted instruction.
 void TraceLogger::logTaintedInstruction(ADDRINT address) {
 	lock.get(3);
-	output << TL_INST_EXEC << SEP << address << '\n';
+	output << TL_INST_EXEC << SEP << (void *) address << '\n';
 	lock.release();
 }

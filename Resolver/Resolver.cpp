@@ -2,6 +2,7 @@
 #include <fstream>
 #include <iostream>
 #include <algorithm>
+#include <cctype>
 
 #include "pin.H"
 #include "ImageManager.h"
@@ -9,8 +10,8 @@
 using namespace std;
 
 #ifdef __APPLE__
-#include <tr1/unordered_set>
-#include <tr1/unordered_map>
+#include <unordered_set>
+#include <unordered_map>
 using namespace std::tr1;
 #else
 #include <unordered_set>
@@ -296,7 +297,7 @@ static VOID OnFini(INT32 code, VOID *v) {
 }
 
 int main(int argc, char *argv[]) {
-	cout << "Resolver tool by Agustin Gianni (Preto Inc.)" << endl;
+	cout << "Resolver tool by Agustin Gianni (agustingianni@gmail.com)" << endl;
 
 	// Initialize symbol processing
 	PIN_InitSymbols();

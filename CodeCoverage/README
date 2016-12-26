@@ -1,48 +1,55 @@
-CodeCoverage pintool that exports a json JSON file with information regarding
-the instructions executed by a process.
+CodeCoverage pintool that creates a log file with information regarding the instructions executed
+by a process. The tool works on Windows, Linux and OS X.
 
-The pintool produces a generic JSON file, that contains the address of the instructions executed.
-This JSON file can then be imported into IDA Pro using one of the scripts located in the "scripts" 
-directory.
-
-This tool aims to facilitate locating intersting parts of a program without incuring in too much
+This tool aims to facilitate locating interesting parts of a program without incurring in too much
 instrumentation overhead. For this reason the pintool can be instructed to only instrument those
-modules inside a whitelist.
+modules inside a white-list.
 
-Example usage: Here we run the pintool from the command line and we specify that only the 'test1'
+Example usage: Here we run the pintool from the command line and we specify that only the 'test'
 image should be instrumented. This improves performance and reduce the amount of information collected.
+You can specify as many white-listed images as you want by adding several "-w" arguments to the pintool.
 
-anon@macbook$ pin -t obj-intel64/CodeCoverage.dylib -w test1 -- ../test_binaries/test1
-CodeCoverage tool by Agustin Gianni (Preto Inc.)
-White-listing image: test1
-Logging code coverage information to: log.json
+$ pin -t obj-intel64/CodeCoverage.dylib -w test -- ../../../test
+CodeCoverage tool by Agustin Gianni (agustingianni@gmail.com)
+White-listing image: test
+Logging code coverage information to: trace.log
+Loaded image: 0x000000010a1df000:0x000000010a1dffff -> test
+Loaded image: 0x00007fff65a5c000:0x00007fff65acffff -> dyld
+Loaded image: 0x00007fff94b07000:0x00007fff94b5afff -> libc++.1.dylib
+Loaded image: 0x00007fff942fa000:0x00007fff942fbfff -> libSystem.B.dylib
+Loaded image: 0x00007fff8bf30000:0x00007fff8bf59fff -> libc++abi.dylib
+Loaded image: 0x00007fff875ac000:0x00007fff875b0fff -> libcache.dylib
 
-anon@macbook$ ls -l log.json
--rw-r--r--  1 anon  staff  99843 Dec 10 14:41 log.json
+$ ll trace.log
+-rw-------  1 anon  staff   3.1K Apr 28 01:01 trace.log
 
-anon@macbook$ cat log.json
-{
-	"threads" :
-	[
-		{
-			"tid" : 0,
-			"hits" :
-			[
-				4340890956, 4340890909, 4340890862, 4340891334, 4340891056, 4340891340, 4340891248, 4340891296, 4340891109,
-				4340890973, 4340891021, 4340890929, 4340890882, 4340890835, 4340891071, 4340890985, 4340891033, 4340891316,
-				4340891269, 4340890800, 4340891322, 4340890997, 4340891280, 4340890951, 4340890904, 4340890857, 4340891328,
-				4340891094
-			]
-		}
-	],
-	"images" :
-	[
-		{"name" : "/Users/anon/work/presentations/training_ch/instrumentation/tools/test_binaries/test1", "lo_addr" : 4340887552, "hi_addr" : 4340895743},
-		{"name" : "/usr/lib/dyld", "lo_addr" : 140734980608000, "hi_addr" : 140734981066751},
-	]
-}
+If you want to instrument all the loaded modules you can leave out the "-w" parameter and it will 
+trace all the basic blocks. Beware that the resulting log file will be several orders of magnitude
+bigger.
 
-As it can be apreciated in the logfile, we have both information about the trace hits and information about the
+$ pin -t obj-intel64/CodeCoverage.dylib -- test
+CodeCoverage tool by Agustin Gianni (agustingianni@gmail.com)
+White-listed images not specified, instrumenting every module by default.
+Logging code coverage information to: trace.log
+Loaded image: 0x0000000101bf1000:0x0000000101bf1fff -> test
+Loaded image: 0x00007fff6d167000:0x00007fff6d1dafff -> dyld
+Loaded image: 0x00007fff94b07000:0x00007fff94b5afff -> libc++.1.dylib
+Loaded image: 0x00007fff942fa000:0x00007fff942fbfff -> libSystem.B.dylib
+Loaded image: 0x00007fff8bf30000:0x00007fff8bf59fff -> libc++abi.dylib
+Loaded image: 0x00007fff875ac000:0x00007fff875b0fff -> libcache.dylib
+
+$ ll trace.log
+-rw-------  1 anon  staff   113K Apr 28 00:57 trace.log
+
+As it can be appreciated in the log file, we have both information about the trace hits and information about the
 loaded images (in the example some entries were removed for clarity). This is because when importing the
-information into IDA Pro we need to accomodate the addresses to the base address in the IDB. Due to ASLR
-the addresses won't probably match.
+information into IDA Pro we need to accommodate the addresses to the base address in the IDB. Due to ASLR
+the addresses won't match.
+
+The format of the log file is very simple. There is one line for each "event" that the pintool investigates:
+
+	1. Basic block hit:
+	   H;<bb_start_hex_address>
+
+	2. Library load:
+	   L;<library_path>;<library_hex_start_address>;<library_hex_end_address>

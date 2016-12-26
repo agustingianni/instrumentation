@@ -327,13 +327,11 @@ VOID Pinnacle::onTraceEvent(const TRACE &trace) {
 
 // Thread creation event handler.
 static VOID OnThreadStart(THREADID tid, CONTEXT *ctxt, INT32 flags, VOID *pinnacle) {
-	printf("LOG: Thread %d started\n", tid);
 	static_cast<Pinnacle *>(pinnacle)->onThreadStartEvent(tid, ctxt, flags);
 }
 
 // Thread destruction event handler.
 static VOID OnThreadFini(THREADID tid, const CONTEXT *ctxt, INT32 c, VOID *pinnacle) {
-	printf("LOG: Thread %d finished\n", tid);
 	static_cast<Pinnacle *>(pinnacle)->onThreadFiniEvent(tid, ctxt, c);
 }
 

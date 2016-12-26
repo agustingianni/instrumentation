@@ -10,8 +10,8 @@
 
 #include <string>
 #include <bitset>
-#include <boost/shared_ptr.hpp>
-#include <boost/unordered_map.hpp>
+#include <memory>
+#include <unordered_map>
 
 #include "pin.H"
 #include "Utilities.h"
@@ -19,9 +19,9 @@
 #include "TaintInformation.h"
 #include "TaintOriginHandlers.h"
 
-typedef boost::unordered_map<ADDRINT, std::bitset<BITMAP_SIZE>> TaintBitField;
-typedef boost::unordered_map<ADDRINT, boost::unordered_map<ADDRINT, boost::shared_ptr<TaintInformation>>>MemMap;
-typedef boost::unordered_map<REG, boost::shared_ptr<TaintInformation>> RegMap;
+typedef std::unordered_map<ADDRINT, std::bitset<BITMAP_SIZE>> TaintBitField;
+typedef std::unordered_map<ADDRINT, std::unordered_map<ADDRINT, std::shared_ptr<TaintInformation>>>MemMap;
+typedef std::unordered_map<REG, std::shared_ptr<TaintInformation>> RegMap;
 
 // The taint database is in charge of storing all the tainting information
 // about each byte of memory and register.
@@ -84,11 +84,11 @@ public:
 	}
 
 	// Memory tainting routines
-	void taint(THREADID tid, ADDRINT ip, ADDRINT address, size_t size, boost::shared_ptr<TaintInformation> ti);
+	void taint(THREADID tid, ADDRINT ip, ADDRINT address, size_t size, std::shared_ptr<TaintInformation> ti);
 	void untaint(THREADID tid, ADDRINT address, size_t size);
 
 	// Register tainting routines
-	void taint(THREADID tid, ADDRINT ip, REG reg, boost::shared_ptr<TaintInformation> ti);
+	void taint(THREADID tid, ADDRINT ip, REG reg, std::shared_ptr<TaintInformation> ti);
 	void untaint(THREADID tid, REG reg);
 
 	// Query routines
@@ -96,9 +96,9 @@ public:
 	bool tainted(THREADID tid, REG reg);
 
 	// Pull information about the stored taint information
-	boost::shared_ptr<TaintInformation> getTaintInformation(ADDRINT address);
-	boost::shared_ptr<TaintInformation> getTaintInformation(ADDRINT address, size_t size);
-	boost::shared_ptr<TaintInformation> getTaintInformation(THREADID tid, REG reg);
+	std::shared_ptr<TaintInformation> getTaintInformation(ADDRINT address);
+	std::shared_ptr<TaintInformation> getTaintInformation(ADDRINT address, size_t size);
+	std::shared_ptr<TaintInformation> getTaintInformation(THREADID tid, REG reg);
 };
 
 #endif	/* TAINTMANAGER_H */

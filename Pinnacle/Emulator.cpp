@@ -10,9 +10,7 @@
 #include <iomanip>
 #include <cassert>
 #include <iostream>
-
-#include <boost/shared_ptr.hpp>
-#include <boost/make_shared.hpp>
+#include <memory>
 
 #include "pin.H"
 
@@ -29,11 +27,11 @@ using namespace Utilities;
 namespace Emulator {
 
 void lea(THREADID tid, ADDRINT ip, REG wreg, REG base, REG index, UINT32 scale, UINT32 displacement) {
-	boost::shared_ptr<TaintInformation> ti;
+	std::shared_ptr<TaintInformation> ti;
 	if (base) {
 		ti = pinnacle->taint_manager->getTaintInformation(tid, base);
 		if (ti) {
-			auto t = boost::make_shared<TaintInformation>(ip, ti);
+			auto t = std::make_shared<TaintInformation>(ip, ti);
 			pinnacle->taint_manager->taint(tid, ip, wreg, t);
 		}
 	}
@@ -41,7 +39,7 @@ void lea(THREADID tid, ADDRINT ip, REG wreg, REG base, REG index, UINT32 scale, 
 	if (index) {
 		ti = pinnacle->taint_manager->getTaintInformation(tid, index);
 		if (ti) {
-			auto t = boost::make_shared<TaintInformation>(ip, ti);
+			auto t = std::make_shared<TaintInformation>(ip, ti);
 			pinnacle->taint_manager->taint(tid, ip, wreg, t);
 		}
 	}
@@ -55,14 +53,14 @@ void leave(THREADID tid, ADDRINT ip, REG rRBP, REG wRSP, REG wRBP, ADDRINT addr,
 	auto ti = pinnacle->taint_manager->getTaintInformation(tid, rRBP);
 	// RSP = RBP
 	if (ti) {
-		auto t = boost::make_shared<TaintInformation>(ip, ti);
+		auto t = std::make_shared<TaintInformation>(ip, ti);
 		pinnacle->taint_manager->taint(tid, ip, wRSP, t);
 	}
 
 	// RBP = [RSP]
 	ti = pinnacle->taint_manager->getTaintInformation(addr, size);
 	if (ti) {
-		auto t = boost::make_shared<TaintInformation>(ip, ti);
+		auto t = std::make_shared<TaintInformation>(ip, ti);
 		pinnacle->taint_manager->taint(tid, ip, wRBP, t);
 	}
 }
@@ -71,14 +69,14 @@ void enter(THREADID tid, ADDRINT ip, ADDRINT addr, INT32 size, REG rRBP, REG wRB
 	auto ti = pinnacle->taint_manager->getTaintInformation(tid, rRBP);
 	if (ti) {
 		// If RBP is tainted then taint [RSP;RSP+SIZE]
-		auto t = boost::make_shared<TaintInformation>(ip, ti);
+		auto t = std::make_shared<TaintInformation>(ip, ti);
 		pinnacle->taint_manager->taint(tid, ip, addr, size, t);
 	}
 
 	ti = pinnacle->taint_manager->getTaintInformation(tid, rRSP);
 	if (ti) {
 		// If RSP was tainted, taint RBP
-		auto t = boost::make_shared<TaintInformation>(ip, ti);
+		auto t = std::make_shared<TaintInformation>(ip, ti);
 		pinnacle->taint_manager->taint(tid, ip, wRBP, t);
 	}
 }
@@ -90,7 +88,7 @@ void generic_mm(THREADID tid, ADDRINT ip, ADDRINT waddr, INT32 wsize, ADDRINT ra
 
 	auto ti = pinnacle->taint_manager->getTaintInformation(raddr, rsize);
 	if (ti) {
-		auto t = boost::make_shared<TaintInformation>(ip, ti);
+		auto t = std::make_shared<TaintInformation>(ip, ti);
 		pinnacle->taint_manager->taint(tid, ip, waddr, wsize, t);
 	} else {
 		pinnacle->taint_manager->untaint(tid, waddr, wsize);
@@ -104,7 +102,7 @@ void generic_mr(THREADID tid, ADDRINT ip, ADDRINT addr, INT32 size, REG reg, BOO
 
 	auto ti = pinnacle->taint_manager->getTaintInformation(tid, reg);
 	if (ti) {
-		auto t = boost::make_shared<TaintInformation>(ip, ti);
+		auto t = std::make_shared<TaintInformation>(ip, ti);
 		pinnacle->taint_manager->taint(tid, ip, addr, size, t);
 	} else {
 		pinnacle->taint_manager->untaint(tid, addr, size);
@@ -118,7 +116,7 @@ void generic_rm(THREADID tid, ADDRINT ip, ADDRINT addr, INT32 size, REG reg, BOO
 
 	auto ti = pinnacle->taint_manager->getTaintInformation(addr, size);
 	if (ti) {
-		auto t = boost::make_shared<TaintInformation>(ip, ti);
+		auto t = std::make_shared<TaintInformation>(ip, ti);
 		pinnacle->taint_manager->taint(tid, ip, reg, t);
 	} else {
 		pinnacle->taint_manager->untaint(tid, reg);
@@ -133,7 +131,7 @@ void generic_rr(THREADID tid, ADDRINT ip, REG rreg, REG wreg, BOOL checkSource) 
 	// emulate wreg = rreg
 	auto ti = pinnacle->taint_manager->getTaintInformation(tid, rreg);
 	if (ti) {
-		auto t = boost::make_shared<TaintInformation>(ip, ti);
+		auto t = std::make_shared<TaintInformation>(ip, ti);
 		pinnacle->taint_manager->taint(tid, ip, wreg, t);
 	} else {
 		pinnacle->taint_manager->untaint(tid, wreg);
@@ -184,7 +182,7 @@ void imul_m(THREADID tid, ADDRINT ip, REG wreg1, REG wreg2, ADDRINT addr, INT32 
 		ti = pinnacle->taint_manager->getTaintInformation(addr, size);
 
 	if (ti) {
-		auto t = boost::make_shared<TaintInformation>(ip, ti);
+		auto t = std::make_shared<TaintInformation>(ip, ti);
 		pinnacle->taint_manager->taint(tid, ip, wreg1, t);
 		pinnacle->taint_manager->taint(tid, ip, wreg2, t);
 	} else {
@@ -200,7 +198,7 @@ void imul_r(THREADID tid, ADDRINT ip, REG wreg1, REG wreg2, REG rreg) {
 		ti = pinnacle->taint_manager->getTaintInformation(tid, wreg1);
 
 	if (ti) {
-		auto t = boost::make_shared<TaintInformation>(ip, ti);
+		auto t = std::make_shared<TaintInformation>(ip, ti);
 		pinnacle->taint_manager->taint(tid, ip, wreg1, t);
 		pinnacle->taint_manager->taint(tid, ip, wreg2, t);
 	} else {
@@ -216,7 +214,7 @@ void imul_rr(THREADID tid, ADDRINT ip, REG wreg, REG rreg1, REG rreg2) {
 		ti = pinnacle->taint_manager->getTaintInformation(tid, rreg2);
 
 	if (ti) {
-		auto t = boost::make_shared<TaintInformation>(ip, ti);
+		auto t = std::make_shared<TaintInformation>(ip, ti);
 		pinnacle->taint_manager->taint(tid, ip, wreg, t);
 	} else {
 		pinnacle->taint_manager->untaint(tid, wreg);
@@ -230,7 +228,7 @@ void imul_rm(THREADID tid, ADDRINT ip, REG wreg, REG rreg, ADDRINT addr, INT32 s
 		ti = pinnacle->taint_manager->getTaintInformation(addr, size);
 
 	if (ti) {
-		auto t = boost::make_shared<TaintInformation>(ip, ti);
+		auto t = std::make_shared<TaintInformation>(ip, ti);
 		pinnacle->taint_manager->taint(tid, ip, wreg, t);
 	} else {
 		pinnacle->taint_manager->untaint(tid, wreg);
@@ -242,7 +240,7 @@ void imul_rmi(THREADID tid, ADDRINT ip, REG wreg, ADDRINT addr, INT32 size, UINT
 	// if any of the bytes of the interval [addr;addr+size] is tainted then taint wreg
 	auto ti = pinnacle->taint_manager->getTaintInformation(addr, size);
 	if (ti) {
-		auto t = boost::make_shared<TaintInformation>(ip, ti);
+		auto t = std::make_shared<TaintInformation>(ip, ti);
 		pinnacle->taint_manager->taint(tid, ip, wreg, t);
 	} else {
 		pinnacle->taint_manager->untaint(tid, wreg);
@@ -250,10 +248,10 @@ void imul_rmi(THREADID tid, ADDRINT ip, REG wreg, ADDRINT addr, INT32 size, UINT
 }
 
 void imul_rri(THREADID tid, ADDRINT ip, REG wreg, REG rreg, UINT32 imm) {
-	boost::shared_ptr<TaintInformation> ti;
+	std::shared_ptr<TaintInformation> ti;
 	ti = pinnacle->taint_manager->getTaintInformation(tid, rreg);
 	if (ti) {
-		auto t = boost::make_shared<TaintInformation>(ip, ti);
+		auto t = std::make_shared<TaintInformation>(ip, ti);
 		pinnacle->taint_manager->taint(tid, ip, wreg, t);
 	} else {
 		pinnacle->taint_manager->untaint(tid, wreg);

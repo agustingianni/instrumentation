@@ -54,7 +54,7 @@ BOOL ImageManager::isInterestingAddress(ADDRINT addr) {
 		--i;
 
 		// If the instruction address does not fall inside a valid white listed image, bail out.
-		if (!(i != images.end() && i->low_ <= addr && addr <= i->high_)) {
+		if (!(i != images.end() && i->low_ <= addr && addr < i->high_)) {
 			PIN_RWMutexUnlock(&images_lock);
 			return false;
 		}

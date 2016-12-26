@@ -6,8 +6,7 @@
  */
 
 #include <sys/types.h>
-#include <boost/shared_ptr.hpp>
-#include <boost/make_shared.hpp>
+#include <memory>
 
 #include "dbg.h"
 #include "Pinnacle.h"
@@ -40,7 +39,7 @@ void recv_exit(THREADID tid, int ret_val) {
 	auto tls_data = pinnacle->taint_manager->getSyscallData(tid);
 	auto ds = pinnacle->descriptor_manager->getDescriptorState((DescriptorType) tls_data->u.func_recv.s);
 	if (ds) {
-		auto ti = boost::make_shared<ReadTaintInformation>(tls_data->pc, (DescriptorType) tls_data->u.func_recv.s, ds->r_off);
+		auto ti = std::make_shared<ReadTaintInformation>(tls_data->pc, (DescriptorType) tls_data->u.func_recv.s, ds->r_off);
 		pinnacle->taint_manager->taint(tid, tls_data->pc, (ADDRINT) tls_data->u.func_recv.buf, ret_val, ti);
 		ds->r_off += ret_val;
 	}
@@ -67,7 +66,7 @@ void recvfrom_exit(THREADID tid, int ret_val) {
 	auto tls_data = pinnacle->taint_manager->getSyscallData(tid);
 	auto ds = pinnacle->descriptor_manager->getDescriptorState((DescriptorType) tls_data->u.func_recvfrom.s);
 	if (ds) {
-		auto ti = boost::make_shared<ReadTaintInformation>(tls_data->pc, (DescriptorType) tls_data->u.func_recvfrom.s, ds->r_off);
+		auto ti = std::make_shared<ReadTaintInformation>(tls_data->pc, (DescriptorType) tls_data->u.func_recvfrom.s, ds->r_off);
 		pinnacle->taint_manager->taint(tid, tls_data->pc, (ADDRINT) tls_data->u.func_recvfrom.buf, ret_val, ti);
 		ds->r_off += ret_val;
 	}
@@ -115,7 +114,7 @@ void ReadFile_exit(THREADID tid, BOOL ret_val) {
 
 	LOG_INFO("Tainting from %p to %p", args.lpBuffer, args.lpBuffer);
 
-	auto ti = boost::make_shared<ReadTaintInformation>(tls_data->pc, (DescriptorType) args.hFile, ds->r_off);
+	auto ti = std::make_shared<ReadTaintInformation>(tls_data->pc, (DescriptorType) args.hFile, ds->r_off);
 	pinnacle->taint_manager->taint(tid, tls_data->pc, reinterpret_cast<ADDRINT>(args.lpBuffer), numberOfBytesRead, ti);
 	ds->r_off += numberOfBytesRead;
 }

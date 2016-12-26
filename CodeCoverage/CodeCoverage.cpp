@@ -7,11 +7,10 @@
 #include "ImageManager.h"
 
 #ifdef __APPLE__
-#include <tr1/unordered_set>
+#include <unordered_set>
 using namespace std::tr1;
 #else
 #include <unordered_set>
-using namespace std;
 #endif
 
 using namespace std;
@@ -21,7 +20,7 @@ typedef unordered_set<ADDRINT> blocks_t;
 
 // By using the command line option '-w <module_name>' we can whitelist the modules.
 static KNOB<string> KnobModuleWhitelist(KNOB_MODE_APPEND, "pintool", "w", "",
-	"Add a module to the white list. If none is specified, everymodule is white-listed.");
+	"Add a module to the white list. If none is specified, everymodule is white-listed. Example: libTIFF.dylib");
 
 static KNOB<string> KnobTraceName(KNOB_MODE_APPEND, "pintool", "n", "",
 	"Define the name of the trace.");
@@ -34,6 +33,8 @@ static PIN_LOCK log_lock;
 
 // Handle image white-listing.
 static ImageManager image_manager;
+
+static bool tracing_enabled = true;
 
 // Each thread will have a set of basic block hits and a log file.
 struct ThreadData {
@@ -97,7 +98,7 @@ static VOID OnImageLoad(IMG img, VOID *v) {
 	ADDRINT low = IMG_LowAddress(img);
 	ADDRINT high = IMG_HighAddress(img);
 
-	printf("Loaded image: %s - 0x%.16lx:0x%.16lx\n", img_name.c_str(), low, high);
+	printf("Loaded image: 0x%.16lx:0x%.16lx -> %s\n", low, high, img_name.c_str());
 
 	// Save the loaded image with its original name.
 	PIN_GetLock(&images_lock, 1);
@@ -105,8 +106,10 @@ static VOID OnImageLoad(IMG img, VOID *v) {
 	PIN_ReleaseLock(&images_lock);
 
 	// Only track the white listed modules
-	if (image_manager.isWhiteListed(img_name))
+	if (image_manager.isWhiteListed(img_name)) {
 		image_manager.addImage(img_name, low, high);
+		tracing_enabled = true;
+	}
 }
 
 // Image unload event handler.
@@ -127,7 +130,7 @@ static VOID OnTrace(TRACE trace, VOID *v) {
 	ADDRINT addr = BBL_Address(bbl);
 
 	// Check if the address is inside a white-listed image.
-	if (!image_manager.isInterestingAddress(addr))
+	if (!tracing_enabled || !image_manager.isInterestingAddress(addr))
 		return;
 
 	// For each basic block in the trace.
@@ -164,7 +167,7 @@ static VOID OnFini(INT32 code, VOID *v) {
 }
 
 int main(int argc, char *argv[]) {
-	cout << "CodeCoverage tool by Agustin Gianni (Preto Inc.)" << endl;
+	cout << "CodeCoverage tool by Agustin Gianni (agustingianni@gmail.com)" << endl;
 
 	// Initialize symbol processing
 	PIN_InitSymbols();
@@ -188,6 +191,9 @@ int main(int argc, char *argv[]) {
 	for (unsigned i = 0; i < KnobModuleWhitelist.NumberOfValues(); ++i) {
 		cout << "White-listing image: " << KnobModuleWhitelist.Value(i) << endl;
 		image_manager.addWhiteListedImage(KnobModuleWhitelist.Value(i));
+
+		// We will only enable tracing when any of the whitelisted images gets loaded.
+		tracing_enabled = false;
 	}
 
 	// Open the log file.

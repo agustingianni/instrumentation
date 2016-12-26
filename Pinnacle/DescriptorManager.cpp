@@ -6,26 +6,27 @@
  */
 
 #include "DescriptorManager.h"
+#include <memory>
 
 using namespace std;
 
 // Create a new DescriptorState for a given descriptor.
-boost::shared_ptr<DescriptorState> DescriptorManager::createDescriptorState(DescriptorType descriptor) {
-	auto ds = boost::make_shared<DescriptorState>(descriptor);
+std::shared_ptr<DescriptorState> DescriptorManager::createDescriptorState(DescriptorType descriptor) {
+	auto ds = std::make_shared<DescriptorState>(descriptor);
 	desc_map[descriptor] = ds;
 	return ds;
 }
 
 // Duplicate the original 'ds' and place it into another socket.
-void DescriptorManager::dupDescriptorState(DescriptorType descriptor, boost::shared_ptr<DescriptorState> ds) {
-	auto copy = boost::make_shared<DescriptorState>(descriptor);
+void DescriptorManager::dupDescriptorState(DescriptorType descriptor, std::shared_ptr<DescriptorState> ds) {
+	auto copy = std::make_shared<DescriptorState>(descriptor);
 	*copy = *ds;
 	desc_map[descriptor] = copy;
 }
 
 // Set the corresponding 'Descriptorstate' structure to a given descriptor.
 // This is used for example for handling the dup family of system calls in unix.
-void DescriptorManager::setDescriptorState(DescriptorType descriptor, boost::shared_ptr<DescriptorState> ds) {
+void DescriptorManager::setDescriptorState(DescriptorType descriptor, std::shared_ptr<DescriptorState> ds) {
 	desc_map[descriptor] = ds;
 }
 
@@ -36,9 +37,9 @@ void DescriptorManager::removeDescriporState(DescriptorType descriptor) {
 	}
 }
 
-boost::shared_ptr<DescriptorState> DescriptorManager::getDescriptorState(DescriptorType descriptor) {
+std::shared_ptr<DescriptorState> DescriptorManager::getDescriptorState(DescriptorType descriptor) {
 	auto it = desc_map.find(descriptor);
-	return (it == desc_map.end()) ? boost::shared_ptr<DescriptorState>() : it->second;
+	return (it == desc_map.end()) ? std::shared_ptr<DescriptorState>() : it->second;
 }
 
 // Check if the descriptor is being tracked by the descriptor manager

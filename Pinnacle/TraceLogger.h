@@ -15,12 +15,12 @@
 #include "Utilities.h"
 
 #define SEP ";"
+#define TL_IMG_LOAD "L"
+#define TL_IMG_UNLOAD "U"
+#define TL_INST_EXEC "T"
 
 class TraceLogger {
 public:
-	enum {
-		TL_IMG_LOAD = 1, TL_IMG_UNLOAD = 2, TL_INST_EXEC = 3
-	};
 
 	void open(const string &f_name);
 	void close();

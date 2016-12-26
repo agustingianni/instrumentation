@@ -9,10 +9,8 @@
 #define DESCRIPTORMANAGER_H
 
 #include <string>
-
-#include <boost/shared_ptr.hpp>
-#include <boost/make_shared.hpp>
-#include <boost/unordered_map.hpp>
+#include <memory>
+#include <unordered_map>
 
 #if defined(TARGET_WINDOWS)
 typedef void *DescriptorType;
@@ -41,14 +39,14 @@ struct DescriptorState {
 
 class DescriptorManager {
 public:
-	typedef boost::unordered_map<DescriptorType, boost::shared_ptr<DescriptorState> > DescriptorMap;
+	typedef std::unordered_map<DescriptorType, std::shared_ptr<DescriptorState> > DescriptorMap;
 
-	boost::shared_ptr<DescriptorState> getDescriptorState(DescriptorType descriptor);
-	boost::shared_ptr<DescriptorState> createDescriptorState(DescriptorType descriptor);
+	std::shared_ptr<DescriptorState> getDescriptorState(DescriptorType descriptor);
+	std::shared_ptr<DescriptorState> createDescriptorState(DescriptorType descriptor);
 
 	bool checkDescriptor(DescriptorType descriptor);
-	void setDescriptorState(DescriptorType descriptor, boost::shared_ptr<DescriptorState> ds);
-	void dupDescriptorState(DescriptorType descriptor, boost::shared_ptr<DescriptorState> ds);
+	void setDescriptorState(DescriptorType descriptor, std::shared_ptr<DescriptorState> ds);
+	void dupDescriptorState(DescriptorType descriptor, std::shared_ptr<DescriptorState> ds);
 	void removeDescriporState(DescriptorType descriptor);
 
 private:

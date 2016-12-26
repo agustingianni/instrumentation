@@ -10,7 +10,7 @@ Example usage: Here we run the pintool from the command line and we specify that
 image should be instrumented. This improves performance and reduce the amount of information collected.
 
 anon@macbook$ pin -t obj-intel64/Recoverer.dylib -w test1 -- ../../tools/test_binaries/test1
-Resolver tool by Agustin Gianni (Preto Inc.)
+Resolver tool by Agustin Gianni (agustingianni@gmail.com)
 White-listing image: test1
 Instrumenting malloc                                                       at 0x00007fff6a023bfa on image /usr/lib/dyld
 Instrumenting operator new(unsigned long)                                  at 0x00007fff6a02cf60 on image /usr/lib/dyld

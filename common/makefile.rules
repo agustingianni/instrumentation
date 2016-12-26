@@ -1,0 +1,7 @@
+OBJECT_ROOTS := ImageManager jsoncpp
+
+$(OBJDIR)ImageManager$(OBJ_SUFFIX): ImageManager.cpp ImageManager.h
+	$(APP_CXX) $(TOOL_CXXFLAGS) $(COMP_OBJ)$@ $< $(CXX_LPATHS) $(CXX_LIBS) $(TOOL_INCLUDES)
+
+$(OBJDIR)jsoncpp$(OBJ_SUFFIX): jsoncpp.cpp json/json.h
+	$(APP_CXX) $(TOOL_CXXFLAGS) $(COMP_OBJ)$@ $< $(CXX_LPATHS) $(CXX_LIBS) $(TOOL_INCLUDES)

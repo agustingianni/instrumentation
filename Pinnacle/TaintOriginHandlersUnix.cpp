@@ -10,8 +10,7 @@
 #include <sys/mman.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <boost/shared_ptr.hpp>
-#include <boost/make_shared.hpp>
+#include <memory>
 
 #include "dbg.h"
 #include "Pinnacle.h"
@@ -21,6 +20,8 @@
 #include "TaintOriginHandlers.h"
 
 extern Pinnacle *pinnacle;
+
+#define NDEBUG 1
 
 namespace TaintOriginHandlers {
 
@@ -177,11 +178,15 @@ void mmap_exit(THREADID tid, void *ret_val) {
 	// Check if the file to be mmaped is one that we track and mark is as tainted.
 	auto tls_data = pinnacle->taint_manager->getSyscallData(tid);
 	if (pinnacle->descriptor_manager->checkDescriptor(tls_data->u.mmap.fd)) {
-		auto ti = boost::make_shared<ReadTaintInformation>(tls_data->pc, tls_data->u.mmap.fd, tls_data->u.mmap.offset);
-		pinnacle->taint_manager->taint(tid, tls_data->pc, (ADDRINT) tls_data->u.mmap.addr, tls_data->u.mmap.len, ti);
+		auto ti = std::make_shared<ReadTaintInformation>(tls_data->pc, tls_data->u.mmap.fd, tls_data->u.mmap.offset);
+		pinnacle->taint_manager->taint(tid, tls_data->pc, (ADDRINT) ret_val, tls_data->u.mmap.len, ti);
+
+		LOG_INFO("mmap tainted %p-%p at IP %p", (void * ) ret_val, (void* ) ((ADDRINT ) ret_val + tls_data->u.mmap.len),
+			(void * ) tls_data->pc);
+
 	} else {
 		// Remove the taint status if the descriptor was not tainted
-		pinnacle->taint_manager->untaint(tid, (ADDRINT) tls_data->u.mmap.addr, tls_data->u.mmap.len);
+		pinnacle->taint_manager->untaint(tid, (ADDRINT) ret_val, tls_data->u.mmap.len);
 	}
 }
 
@@ -260,8 +265,12 @@ void pread_exit(THREADID tid, ssize_t ret_val) {
 	// Here we do not advance the offset.
 	auto tls_data = pinnacle->taint_manager->getSyscallData(tid);
 	if (auto ds = pinnacle->descriptor_manager->getDescriptorState(tls_data->u.pread.d)) {
-		auto ti = boost::make_shared<ReadTaintInformation>(tls_data->pc, tls_data->u.pread.d, ds->r_off);
+		auto ti = std::make_shared<ReadTaintInformation>(tls_data->pc, tls_data->u.pread.d, ds->r_off);
 		pinnacle->taint_manager->taint(tid, tls_data->pc, (ADDRINT) tls_data->u.pread.buf, ret_val, ti);
+
+		LOG_INFO("pread tainted %p-%p at IP %p", tls_data->u.pread.buf,
+			(void* ) ((ADDRINT ) tls_data->u.pread.buf + ret_val), (void * ) tls_data->pc);
+
 	} else {
 		// Remove the taint status if the descriptor was not tainted
 		pinnacle->taint_manager->untaint(tid, (ADDRINT) tls_data->u.pread.buf, ret_val);
@@ -284,9 +293,13 @@ void read_exit(THREADID tid, ssize_t ret_val) {
 	// Advance the descriptor state 'ret' bytes
 	auto tls_data = pinnacle->taint_manager->getSyscallData(tid);
 	if (auto ds = pinnacle->descriptor_manager->getDescriptorState(tls_data->u.read.fildes)) {
-		auto ti = boost::make_shared<ReadTaintInformation>(tls_data->pc, tls_data->u.read.fildes, ds->r_off);
+		auto ti = std::make_shared<ReadTaintInformation>(tls_data->pc, tls_data->u.read.fildes, ds->r_off);
 		pinnacle->taint_manager->taint(tid, tls_data->pc, (ADDRINT) tls_data->u.read.buf, ret_val, ti);
 		ds->r_off += ret_val;
+
+		LOG_INFO("read tainted %p-%p at IP %p", tls_data->u.read.buf,
+			(void* ) ((ADDRINT ) tls_data->u.read.buf + ret_val), (void * ) tls_data->pc);
+
 	} else {
 		// Remove the taint status if the descriptor was not tainted
 		pinnacle->taint_manager->untaint(tid, (ADDRINT) tls_data->u.read.buf, ret_val);
@@ -309,9 +322,12 @@ void readv_exit(THREADID tid, ssize_t ret_val) {
 	// Advance the descriptor state 'ret' bytes
 	auto tls_data = pinnacle->taint_manager->getSyscallData(tid);
 	if (auto ds = pinnacle->descriptor_manager->getDescriptorState(tls_data->u.readv.d)) {
-		auto ti = boost::make_shared<ReadTaintInformation>(tls_data->pc, tls_data->u.readv.d, ds->r_off);
+		auto ti = std::make_shared<ReadTaintInformation>(tls_data->pc, tls_data->u.readv.d, ds->r_off);
 		for (auto i = 0; i < tls_data->u.readv.iovcnt; i++) {
 			pinnacle->taint_manager->taint(tid, tls_data->pc, (ADDRINT) tls_data->u.readv.iov[i].iov_base, ret_val, ti);
+
+			LOG_INFO("readv tainted %p-%p at IP %p", tls_data->u.pread.buf,
+				(void* ) ((ADDRINT ) tls_data->u.readv.iov[i].iov_base + ret_val), (void * ) tls_data->pc);
 		}
 
 		ds->r_off += ret_val;
@@ -342,9 +358,13 @@ void recvfrom_exit(THREADID tid, ssize_t ret_val) {
 	// Advance the descriptor state 'ret' bytes
 	auto tls_data = pinnacle->taint_manager->getSyscallData(tid);
 	if (auto ds = pinnacle->descriptor_manager->getDescriptorState(tls_data->u.recvfrom.socket)) {
-		auto ti = boost::make_shared<ReadTaintInformation>(tls_data->pc, tls_data->u.recvfrom.socket, ds->r_off);
+		auto ti = std::make_shared<ReadTaintInformation>(tls_data->pc, tls_data->u.recvfrom.socket, ds->r_off);
 		pinnacle->taint_manager->taint(tid, tls_data->pc, (ADDRINT) tls_data->u.recvfrom.buffer, ret_val, ti);
 		ds->r_off += ret_val;
+
+		LOG_INFO("recvfrom tainted %p-%p at IP %p", tls_data->u.pread.buf,
+			(void* ) ((ADDRINT ) tls_data->u.recvfrom.buffer + ret_val), (void * ) tls_data->pc);
+
 	} else {
 		// Remove the taint status if the descriptor was not tainted
 		pinnacle->taint_manager->untaint(tid, (ADDRINT) tls_data->u.recvfrom.buffer, ret_val);
@@ -368,9 +388,13 @@ void recvmsg_exit(THREADID tid, ssize_t ret_val) {
 	// Advance the descriptor state 'ret' bytes
 	auto tls_data = pinnacle->taint_manager->getSyscallData(tid);
 	if (auto ds = pinnacle->descriptor_manager->getDescriptorState(tls_data->u.recvmsg.socket)) {
-		auto ti = boost::make_shared<ReadTaintInformation>(tls_data->pc, tls_data->u.recvmsg.socket, ds->r_off);
+		auto ti = std::make_shared<ReadTaintInformation>(tls_data->pc, tls_data->u.recvmsg.socket, ds->r_off);
 		pinnacle->taint_manager->taint(tid, tls_data->pc, (ADDRINT) tls_data->u.recvmsg.buffer, ret_val, ti);
 		ds->r_off += ret_val;
+
+		LOG_INFO("recvfrom tainted %p-%p at IP %p", tls_data->u.pread.buf,
+			(void* ) ((ADDRINT ) tls_data->u.recvmsg.buffer + ret_val), (void * ) tls_data->pc);
+
 	} else {
 		// Remove the taint status if the descriptor was not tainted
 		pinnacle->taint_manager->untaint(tid, (ADDRINT) tls_data->u.recvmsg.buffer, ret_val);
