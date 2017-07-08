@@ -45,12 +45,12 @@ BOOL ImageManager::isInterestingAddress(ADDRINT addr) {
 	PIN_RWMutexReadLock(&images_lock);
 	{
 		// If there is no white-listed image, everything is white-listed.
-		if (images.empty()) {
+		if (images.empty() || (addr >= m_cached_low && addr < m_cached_high)) {
 			PIN_RWMutexUnlock(&images_lock);
 			return true;
 		}
 
-		set<LoadedImage>::iterator i = images.upper_bound(LoadedImage("", addr));
+		auto i = images.upper_bound(LoadedImage("", addr));
 		--i;
 
 		// If the instruction address does not fall inside a valid white listed image, bail out.
@@ -58,6 +58,10 @@ BOOL ImageManager::isInterestingAddress(ADDRINT addr) {
 			PIN_RWMutexUnlock(&images_lock);
 			return false;
 		}
+
+		// Save the matched image.
+		m_cached_low = i->low_;
+		m_cached_high = i->high_;
 	}
 	PIN_RWMutexUnlock(&images_lock);
 

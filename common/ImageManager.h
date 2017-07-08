@@ -31,6 +31,10 @@ private:
 	// Here we store the names of the images inside our white list.
 	std::set<std::string> whitelist;
 
+	// Store the last recently matched image so we can use it as a cache.
+	ADDRINT m_cached_low;
+	ADDRINT m_cached_high;
+
 public:
 	ImageManager();
 	virtual ~ImageManager();
