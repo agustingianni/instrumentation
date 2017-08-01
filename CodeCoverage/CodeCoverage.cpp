@@ -1,5 +1,4 @@
 #include <iostream>
-#include <set>
 #include <string>
 #include <vector>
 #include <utility>
@@ -8,30 +7,15 @@
 #include <cstdio>
 #include <cstdarg>
 #include <cstdlib>
-#include <unordered_set>
-#include <unordered_map>
 
 #include "pin.H"
-#include "ImageManager.h"
+#include "DiskPool.h"
 
-// Pin comes with some old standard libraries.
-namespace pintool {
-template <typename V>
-using unordered_set = std::tr1::unordered_set<V>;
-
-template <typename K, typename V>
-using unordered_map = std::tr1::unordered_map<K, V>;
-}
-
-// Tool's arguments.
-static KNOB<string> KnobModuleWhitelist(KNOB_MODE_APPEND, "pintool", "w", "",
-    "Add a module to the white list. If none is specified, everymodule is white-listed. Example: libTIFF.dylib");
-
-static KNOB<string> KnobLogFile(KNOB_MODE_WRITEONCE, "pintool", "l", "trace.log",
+static KNOB<std::string> KnobLogFile(KNOB_MODE_WRITEONCE, "pintool", "l", "trace.log",
     "Name of the output file. If none is specified, trace.log is used.");
 
 // Return the file/directory name of a path.
-static string base_name(const string& path)
+static string base_name(const std::string& path)
 {
 #if defined(TARGET_WINDOWS)
 #define PATH_SEPARATOR "\\"
@@ -43,257 +27,178 @@ static string base_name(const string& path)
     return name;
 }
 
-class TraceFile {
-public:
-    TraceFile(const std::string& filename)
-    {
-        m_file = fopen(filename.c_str(), "w+");
-        if (!m_file) {
-            std::cerr << "Could not open the log file." << std::endl;
-            std::abort();
-        }
-    }
-
-    ~TraceFile()
-    {
-        if (fclose(m_file) != 0) {
-            std::cerr << "Could not close the log file." << std::endl;
-            std::abort();
-        }
-    }
-
-    void write_binary(const void* ptr, size_t size)
-    {
-        if (fwrite(ptr, size, 1, m_file) != 1) {
-            std::cerr << "Could not log to the log file." << std::endl;
-            std::abort();
-        }
-    }
-
-    void write_string(const char* format, ...)
-    {
-        va_list args;
-        va_start(args, format);
-        if (vfprintf(m_file, format, args) < 0) {
-            std::cerr << "Could not log to the log file." << std::endl;
-            std::abort();
-        }
-        va_end(args);
-    }
-
-private:
-    FILE* m_file;
+enum class EventType : uint8_t {
+    BASIC_BLOCK_EVENT,
+    IMAGE_EVENT
 };
 
-// Per thread data structure. This is mainly done to avoid locking.
-struct ThreadData {
-    // Unique list of hit basic blocks.
-    pintool::unordered_set<ADDRINT> m_block_hit;
+struct BaseEvent {
+    BaseEvent(EventType type)
+        : m_type(type)
+    {
+    }
 
-    // Map basic a block address to its size.
-    pintool::unordered_map<ADDRINT, uint16_t> m_block_size;
+    EventType m_type;
 };
 
+struct BasicBlockEvent : public BaseEvent {
+    BasicBlockEvent(uint64_t address, uint32_t size)
+        : BaseEvent(EventType::BASIC_BLOCK_EVENT)
+        , m_address(address)
+        , m_size(size)
+    {
+    }
+
+    static size_t size()
+    {
+        return sizeof(BasicBlockEvent);
+    }
+
+    uint64_t m_address;
+    uint32_t m_size;
+};
+
+struct String {
+    String(const std::string& str)
+        : m_size(str.size())
+    {
+        memcpy(m_data, str.c_str(), str.size());
+    }
+
+    uint16_t m_size;
+    char m_data[0];
+};
+
+struct ImageEvent : public BaseEvent {
+    ImageEvent(const std::string& name, uint64_t address_lo, uint64_t address_hi)
+        : BaseEvent(EventType::IMAGE_EVENT)
+        , m_address_hi(address_hi)
+        , m_address_lo(address_lo)
+        , m_name(name)
+    {
+    }
+
+    static size_t size(const std::string& name)
+    {
+        return sizeof(ImageEvent) + sizeof(String) + name.size();
+    }
+
+    uint64_t m_address_hi;
+    uint64_t m_address_lo;
+    String m_name;
+};
+
+class IOThread;
 class ToolContext {
-private:
+public:
     ToolContext()
     {
-        PIN_InitLock(&m_loaded_images_lock);
-        PIN_InitLock(&m_thread_lock);
-        m_tls_key = PIN_CreateThreadDataKey(nullptr);
     }
 
-public:
-    static ToolContext& instance()
-    {
-        static ToolContext context;
-        return context;
-    }
-
-    ThreadData* GetThreadLocalData(THREADID tid)
-    {
-        return static_cast<ThreadData*>(PIN_GetThreadData(m_tls_key, tid));
-    }
-
-    void setThreadLocalData(THREADID tid, ThreadData* data)
-    {
-        PIN_SetThreadData(m_tls_key, data, tid);
-    }
-
-    // The image manager allows us to keep track of loaded images.
-    ImageManager* m_images;
-
-    // Trace file used to log execution traces.
-    TraceFile* m_trace;
-
-    // Keep track of _all_ the loaded images.
-    std::vector<LoadedImage> m_loaded_images;
-    PIN_LOCK m_loaded_images_lock;
-
-    // Thread tracking utilities.
-    std::set<THREADID> m_seen_threads;
-    std::vector<ThreadData*> m_terminated_threads;
-    PIN_LOCK m_thread_lock;
-
-    // Flag that indicates that tracing is enabled. Always true if there are no whitelisted images.
-    bool m_tracing_enabled = true;
-
-    // TLS key used to store per-thread data.
-    TLS_KEY m_tls_key;
+    DiskPoolRaw* m_pool;
+    IOThread* m_io_thread;
 };
 
-// Thread creation event handler.
-static VOID OnThreadStart(THREADID tid, CONTEXT* ctxt, INT32 flags, VOID* v)
-{
-    // Create a new `ThreadData` object and set it on the TLS.
-    auto& context = *reinterpret_cast<ToolContext*>(v);
-    context.setThreadLocalData(tid, new ThreadData);
+#include <boost/memory_order.hpp>
+#include <boost/atomic/atomic.hpp>
 
-    // Save the recently created thread.
-    PIN_GetLock(&context.m_thread_lock, 1);
+class IOThread {
+public:
+    IOThread(DiskPoolRaw* pool)
+        : m_pool(pool)
     {
-        context.m_seen_threads.insert(tid);
     }
-    PIN_ReleaseLock(&context.m_thread_lock);
-}
 
-// Thread destruction event handler.
-static VOID OnThreadFini(THREADID tid, const CONTEXT* ctxt, INT32 c, VOID* v)
-{
-    // Get thread's `ThreadData` structure.
-    auto& context = *reinterpret_cast<ToolContext*>(v);
-    ThreadData* data = context.GetThreadLocalData(tid);
-
-    // Remove the thread from the seen threads set and add it to the terminated list.
-    PIN_GetLock(&context.m_thread_lock, 1);
+    void start()
     {
-        context.m_seen_threads.erase(tid);
-        context.m_terminated_threads.push_back(data);
+        printf("Starting IO thread.\n");
+        if (PIN_SpawnInternalThread(IOThread::dispatch, this, 0, &m_tid) == INVALID_THREADID) {
+            cerr << "Error creating I/O thread!" << endl;
+            abort();
+        }
     }
-    PIN_ReleaseLock(&context.m_thread_lock);
-}
+
+    void stop()
+    {
+        printf("Stopping IO thread.\n");
+        m_stop.store(1);
+
+        printf("Waiting I/O thread to finish.\n");
+        PIN_WaitForThreadTermination(m_tid, PIN_INFINITE_TIMEOUT, nullptr);
+    }
+
+private:
+    static void dispatch(VOID* arg)
+    {
+        IOThread* self = reinterpret_cast<IOThread*>(arg);
+        self->run();
+    }
+
+    void run()
+    {
+        while (!m_stop.load(boost::memory_order::memory_order_acquire)) {
+            sleep(1);
+            m_pool->flush();
+        }
+    }
+
+    PIN_THREAD_UID m_tid;
+    boost::atomic<int> m_stop{ 0 };
+    DiskPoolRaw* m_pool;
+};
+
+static ToolContext* g_context = nullptr;
 
 // Image load event handler.
 static VOID OnImageLoad(IMG img, VOID* v)
 {
-    auto& context = *reinterpret_cast<ToolContext*>(v);
-    string img_name = base_name(IMG_Name(img));
-
+    auto full_name = IMG_Name(img);
+    string img_name = base_name(full_name);
     ADDRINT low = IMG_LowAddress(img);
     ADDRINT high = IMG_HighAddress(img);
-
     printf("Loaded image: 0x%.16lx:0x%.16lx -> %s\n", low, high, img_name.c_str());
 
-    // Save the loaded image with its original full name/path.
-    PIN_GetLock(&context.m_loaded_images_lock, 1);
-    {
-        context.m_loaded_images.push_back(LoadedImage(IMG_Name(img), low, high));
-    }
-    PIN_ReleaseLock(&context.m_loaded_images_lock);
-
-    // If the image is whitelisted save its information.
-    if (context.m_images->isWhiteListed(img_name)) {
-        context.m_images->addImage(img_name, low, high);
-
-        // Enable tracing if not already enabled.
-        if (!context.m_tracing_enabled)
-            context.m_tracing_enabled = true;
-    }
-}
-
-// Image unload event handler.
-static VOID OnImageUnload(IMG img, VOID* v)
-{
-    auto& context = *reinterpret_cast<ToolContext*>(v);
-    context.m_images->removeImage(IMG_LowAddress(img));
+    auto memory = reinterpret_cast<ImageEvent*>(g_context->m_pool->alloc(ImageEvent::size(full_name)));
+    new (memory) ImageEvent(full_name, low, high);
 }
 
 // Basic block hit event handler.
-static VOID OnBasicBlockHit(THREADID tid, ADDRINT addr, UINT32 size, VOID* v)
+static VOID OnBasicBlockHit(ADDRINT addr, UINT32 size)
 {
-    auto& context = *reinterpret_cast<ToolContext*>(v);
-    ThreadData* data = context.GetThreadLocalData(tid);
-    data->m_block_hit.insert(addr);
-    data->m_block_size[addr] = size;
+    auto memory = reinterpret_cast<BasicBlockEvent*>(g_context->m_pool->alloc(BasicBlockEvent::size()));
+    new (memory) BasicBlockEvent(addr, size);
 }
 
 // Trace hit event handler.
 static VOID OnTrace(TRACE trace, VOID* v)
 {
-    auto& context = *reinterpret_cast<ToolContext*>(v);
+    return;
+
     BBL bbl = TRACE_BblHead(trace);
     ADDRINT addr = BBL_Address(bbl);
-
-    // Check if the address is inside a white-listed image.
-    if (!context.m_tracing_enabled || !context.m_images->isInterestingAddress(addr))
-        return;
 
     // For each basic block in the trace.
     for (; BBL_Valid(bbl); bbl = BBL_Next(bbl)) {
         addr = BBL_Address(bbl);
         BBL_InsertCall(bbl, IPOINT_ANYWHERE, (AFUNPTR)OnBasicBlockHit,
-            IARG_THREAD_ID,
             IARG_ADDRINT, addr,
             IARG_UINT32, BBL_Size(bbl),
-            IARG_PTR, v,
             IARG_END);
     }
+}
+
+// Program start event handler.
+static VOID OnStart(VOID* v)
+{
+    printf("Application is starting.\n");
+    g_context->m_io_thread->start();
 }
 
 // Program finish event handler.
 static VOID OnFini(INT32 code, VOID* v)
 {
-    auto& context = *reinterpret_cast<ToolContext*>(v);
-    context.m_trace->write_string("DRCOV VERSION: 2\n");
-    context.m_trace->write_string("DRCOV FLAVOR: drcov\n");
-    context.m_trace->write_string("Module Table: version 2, count %u\n", context.m_loaded_images.size());
-    context.m_trace->write_string("Columns: id, base, end, entry, checksum, timestamp, path\n");
-
-    // We don't supply entry, checksum and, timestamp.
-    for (unsigned i = 0; i < context.m_loaded_images.size(); i++) {
-        const auto& image = context.m_loaded_images[i];
-        context.m_trace->write_string("%2u, 0x%.16llx, 0x%.16llx, 0x0000000000000000, 0x00000000, 0x00000000, %s\n",
-            i, image.low_, image.high_, image.name_.c_str());
-    }
-
-    // Add non terminated threads to the list of terminated threads.
-    for (THREADID i : context.m_seen_threads) {
-        ThreadData* data = context.GetThreadLocalData(i);
-        context.m_terminated_threads.push_back(data);
-    }
-
-    // Count the global number of basic blocks.
-    size_t number_of_bbs = 0;
-    for (const auto& data : context.m_terminated_threads) {
-        number_of_bbs += data->m_block_hit.size();
-    }
-
-    context.m_trace->write_string("BB Table: %u bbs\n", number_of_bbs);
-
-    struct __attribute__((packed)) drcov_bb {
-        uint32_t start;
-        uint16_t size;
-        uint16_t id;
-    };
-
-    drcov_bb tmp;
-
-    for (const auto& data : context.m_terminated_threads) {
-        for (const auto& address : data->m_block_hit) {
-            auto it = std::find_if(context.m_loaded_images.begin(), context.m_loaded_images.end(), [&address](const LoadedImage& image) {
-                return address >= image.low_ && address < image.high_;
-            });
-
-            if (it == context.m_loaded_images.end())
-                continue;
-
-            tmp.id = std::distance(context.m_loaded_images.begin(), it);
-            tmp.start = address - it->low_;
-            tmp.size = data->m_block_size[address];
-
-            context.m_trace->write_binary(&tmp, sizeof(tmp));
-        }
-    }
+    printf("Application is finishing.\n");
+    g_context->m_io_thread->stop();
 }
 
 int main(int argc, char* argv[])
@@ -310,35 +215,22 @@ int main(int argc, char* argv[])
     }
 
     // Initialize the tool context.
-    auto& context = ToolContext::instance();
-
-    // Create a an image manager that keeps track of the loaded/unloaded images.
-    context.m_images = new ImageManager();
-    for (unsigned i = 0; i < KnobModuleWhitelist.NumberOfValues(); ++i) {
-        cout << "White-listing image: " << KnobModuleWhitelist.Value(i) << endl;
-        context.m_images->addWhiteListedImage(KnobModuleWhitelist.Value(i));
-
-        // We will only enable tracing when any of the whitelisted images gets loaded.
-        context.m_tracing_enabled = false;
-    }
+    g_context = new ToolContext();
+    g_context->m_pool = new DiskPoolRaw(KnobLogFile.ValueString().c_str(), GB(1));
+    g_context->m_io_thread = new IOThread(g_context->m_pool);
 
     // Create a trace file.
     cout << "Logging code coverage information to: " << KnobLogFile.ValueString() << endl;
-    context.m_trace = new TraceFile(KnobLogFile.ValueString());
 
-    // Handlers for thread creation and destruction.
-    PIN_AddThreadStartFunction(OnThreadStart, &context);
-    PIN_AddThreadFiniFunction(OnThreadFini, &context);
-
-    // Handlers for image loading and unloading.
-    IMG_AddInstrumentFunction(OnImageLoad, &context);
-    IMG_AddUnloadFunction(OnImageUnload, &context);
+    // Handlers for image loading.
+    IMG_AddInstrumentFunction(OnImageLoad, nullptr);
 
     // Handlers for instrumentation events.
-    TRACE_AddInstrumentFunction(OnTrace, &context);
+    TRACE_AddInstrumentFunction(OnTrace, nullptr);
 
-    // Handler for program exits.
-    PIN_AddFiniFunction(OnFini, &context);
+    // Handler for program start/exit.
+    PIN_AddFiniFunction(OnFini, nullptr);
+    PIN_AddApplicationStartFunction(OnStart, nullptr);
 
     PIN_StartProgram();
     return 0;
