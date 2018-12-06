@@ -134,7 +134,9 @@ static VOID OnImageLoad(IMG img, VOID* v)
     ADDRINT low = IMG_LowAddress(img);
     ADDRINT high = IMG_HighAddress(img);
 
+    #ifdef DEBUG
     printf("Loaded image: %p:%p -> %s\n", (void *)low, (void *)high, img_name.c_str());
+    #endif
 
     // Save the loaded image with its original full name/path.
     PIN_GetLock(&context.m_loaded_images_lock, 1);
