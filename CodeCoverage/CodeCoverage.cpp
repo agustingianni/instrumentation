@@ -12,6 +12,7 @@
 #include <unordered_map>
 
 #include "pin.H"
+#include "TraceFile.h"
 #include "ImageManager.h"
 
 // Pin comes with some old standard libraries.
@@ -43,48 +44,6 @@ static string base_name(const string& path)
     return name;
 }
 
-class TraceFile {
-public:
-    TraceFile(const std::string& filename)
-    {
-        m_file = fopen(filename.c_str(), "w+");
-        if (!m_file) {
-            std::cerr << "Could not open the log file." << std::endl;
-            std::abort();
-        }
-    }
-
-    ~TraceFile()
-    {
-        if (fclose(m_file) != 0) {
-            std::cerr << "Could not close the log file." << std::endl;
-            std::abort();
-        }
-    }
-
-    void write_binary(const void* ptr, size_t size)
-    {
-        if (fwrite(ptr, size, 1, m_file) != 1) {
-            std::cerr << "Could not log to the log file." << std::endl;
-            std::abort();
-        }
-    }
-
-    void write_string(const char* format, ...)
-    {
-        va_list args;
-        va_start(args, format);
-        if (vfprintf(m_file, format, args) < 0) {
-            std::cerr << "Could not log to the log file." << std::endl;
-            std::abort();
-        }
-        va_end(args);
-    }
-
-private:
-    FILE* m_file;
-};
-
 // Per thread data structure. This is mainly done to avoid locking.
 struct ThreadData {
     // Unique list of hit basic blocks.
@@ -95,19 +54,12 @@ struct ThreadData {
 };
 
 class ToolContext {
-private:
+public:
     ToolContext()
     {
         PIN_InitLock(&m_loaded_images_lock);
         PIN_InitLock(&m_thread_lock);
         m_tls_key = PIN_CreateThreadDataKey(nullptr);
-    }
-
-public:
-    static ToolContext& instance()
-    {
-        static ToolContext context;
-        return context;
     }
 
     ThreadData* GetThreadLocalData(THREADID tid)
@@ -182,7 +134,7 @@ static VOID OnImageLoad(IMG img, VOID* v)
     ADDRINT low = IMG_LowAddress(img);
     ADDRINT high = IMG_HighAddress(img);
 
-    printf("Loaded image: 0x%.16lx:0x%.16lx -> %s\n", low, high, img_name.c_str());
+    printf("Loaded image: %p:%p -> %s\n", (void *)low, (void *)high, img_name.c_str());
 
     // Save the loaded image with its original full name/path.
     PIN_GetLock(&context.m_loaded_images_lock, 1);
@@ -209,7 +161,7 @@ static VOID OnImageUnload(IMG img, VOID* v)
 }
 
 // Basic block hit event handler.
-static VOID OnBasicBlockHit(THREADID tid, ADDRINT addr, UINT32 size, VOID* v)
+static VOID PIN_FAST_ANALYSIS_CALL OnBasicBlockHit(THREADID tid, ADDRINT addr, UINT32 size, VOID* v)
 {
     auto& context = *reinterpret_cast<ToolContext*>(v);
     ThreadData* data = context.GetThreadLocalData(tid);
@@ -232,6 +184,7 @@ static VOID OnTrace(TRACE trace, VOID* v)
     for (; BBL_Valid(bbl); bbl = BBL_Next(bbl)) {
         addr = BBL_Address(bbl);
         BBL_InsertCall(bbl, IPOINT_ANYWHERE, (AFUNPTR)OnBasicBlockHit,
+            IARG_FAST_ANALYSIS_CALL,
             IARG_THREAD_ID,
             IARG_ADDRINT, addr,
             IARG_UINT32, BBL_Size(bbl),
@@ -252,8 +205,8 @@ static VOID OnFini(INT32 code, VOID* v)
     // We don't supply entry, checksum and, timestamp.
     for (unsigned i = 0; i < context.m_loaded_images.size(); i++) {
         const auto& image = context.m_loaded_images[i];
-        context.m_trace->write_string("%2u, 0x%.16llx, 0x%.16llx, 0x0000000000000000, 0x00000000, 0x00000000, %s\n",
-            i, image.low_, image.high_, image.name_.c_str());
+        context.m_trace->write_string("%2u, %p, %p, 0x0000000000000000, 0x00000000, 0x00000000, %s\n",
+            i, (void *)image.low_, (void *)image.high_, image.name_.c_str());
     }
 
     // Add non terminated threads to the list of terminated threads.
@@ -278,6 +231,9 @@ static VOID OnFini(INT32 code, VOID* v)
 
     drcov_bb tmp;
 
+    // Collect the number of hits per image.
+    pintool::unordered_map<std::string, uint64_t> frequency;
+
     for (const auto& data : context.m_terminated_threads) {
         for (const auto& address : data->m_block_hit) {
             auto it = std::find_if(context.m_loaded_images.begin(), context.m_loaded_images.end(), [&address](const LoadedImage& image) {
@@ -287,12 +243,21 @@ static VOID OnFini(INT32 code, VOID* v)
             if (it == context.m_loaded_images.end())
                 continue;
 
-            tmp.id = std::distance(context.m_loaded_images.begin(), it);
-            tmp.start = address - it->low_;
+            tmp.id = (uint16_t)std::distance(context.m_loaded_images.begin(), it);
+            tmp.start = (uint32_t)(address - it->low_);
             tmp.size = data->m_block_size[address];
+
+            // Count the number of basic blocks per loaded image.
+            frequency[it->name_] += 1;
 
             context.m_trace->write_binary(&tmp, sizeof(tmp));
         }
+    }
+
+    // List the frequencies.
+    cout << "Per loaded image basic block hit count:" << endl;
+    for (const auto& kv : frequency) {
+        printf("%10u - %s\n", kv.second, kv.first.c_str());
     }
 }
 
@@ -310,35 +275,35 @@ int main(int argc, char* argv[])
     }
 
     // Initialize the tool context.
-    auto& context = ToolContext::instance();
+    ToolContext *context = new ToolContext();
 
     // Create a an image manager that keeps track of the loaded/unloaded images.
-    context.m_images = new ImageManager();
+    context->m_images = new ImageManager();
     for (unsigned i = 0; i < KnobModuleWhitelist.NumberOfValues(); ++i) {
         cout << "White-listing image: " << KnobModuleWhitelist.Value(i) << endl;
-        context.m_images->addWhiteListedImage(KnobModuleWhitelist.Value(i));
+        context->m_images->addWhiteListedImage(KnobModuleWhitelist.Value(i));
 
         // We will only enable tracing when any of the whitelisted images gets loaded.
-        context.m_tracing_enabled = false;
+        context->m_tracing_enabled = false;
     }
 
     // Create a trace file.
     cout << "Logging code coverage information to: " << KnobLogFile.ValueString() << endl;
-    context.m_trace = new TraceFile(KnobLogFile.ValueString());
+    context->m_trace = new TraceFile(KnobLogFile.ValueString());
 
     // Handlers for thread creation and destruction.
-    PIN_AddThreadStartFunction(OnThreadStart, &context);
-    PIN_AddThreadFiniFunction(OnThreadFini, &context);
+    PIN_AddThreadStartFunction(OnThreadStart, context);
+    PIN_AddThreadFiniFunction(OnThreadFini, context);
 
     // Handlers for image loading and unloading.
-    IMG_AddInstrumentFunction(OnImageLoad, &context);
-    IMG_AddUnloadFunction(OnImageUnload, &context);
+    IMG_AddInstrumentFunction(OnImageLoad, context);
+    IMG_AddUnloadFunction(OnImageUnload, context);
 
     // Handlers for instrumentation events.
-    TRACE_AddInstrumentFunction(OnTrace, &context);
+    TRACE_AddInstrumentFunction(OnTrace, context);
 
     // Handler for program exits.
-    PIN_AddFiniFunction(OnFini, &context);
+    PIN_AddFiniFunction(OnFini, context);
 
     PIN_StartProgram();
     return 0;
